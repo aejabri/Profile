@@ -1,0 +1,8 @@
+{
+  "asOf": "2026-06-17 close (ET)",
+  "indices": [
+    { "sym": "^DJI",  "label": "DJI",  "name": "Dow Jones",   "price": 51492.55, "change": -507.12, "pct": -0.98 },
+    { "sym": "^IXIC", "label": "IXIC", "name": "Nasdaq Comp", "price": 26021.66, "change": -354.69, "pct": -1.34 },
+    { "sym": "^GSPC", "label": "SPX",  "name": "S&P 500",     "price": 7420.10,  "change": -91.25,  "pct": -1.21 }
+  ]
+}
