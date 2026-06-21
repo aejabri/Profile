@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UDWF+ Monitor — Trading Terminal</title>
+<meta name="description" content="Live UDWF+ gated pipeline scan monitor: regime, board, follow-ups, run schedule." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#070a09; --panel:#0c110f; --panel2:#101814; --border:#1d2a23;
+    --txt:#c9f0d8; --dim:#5f8770; --faint:#3a564a;
+    --green:#28e07a; --green2:#1aa85b; --amber:#f5b73d; --red:#ff5c5c;
+    --accent:#28e07a; --shadow:0 0 0 1px var(--border), 0 8px 30px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(circle at 20% -10%,rgba(40,224,122,.06),transparent 40%);min-height:100vh}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 18px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:34px;height:34px;flex:none}
+  h1{font-size:16px;font-weight:800;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+  .meta{text-align:right;font-size:11px;color:var(--dim)}
+  .meta b{color:var(--green)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;
+    box-shadow:0 0 8px currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .usflag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:4px;font-size:9px;
+    letter-spacing:1.5px;color:#0a0f0c;background:var(--green);font-weight:800;vertical-align:middle}
+  /* US index ticker strip */
+  .ticker{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+  .tk-loading{grid-column:1/-1;color:var(--dim);font-size:11px;padding:14px;text-align:center;
+    border:1px dashed var(--border);border-radius:10px}
+  .tk{padding:13px 16px;border-radius:10px;box-shadow:var(--shadow);background:var(--panel);
+    position:relative;overflow:hidden;border-left:3px solid var(--faint)}
+  .tk.up{border-left-color:var(--green);background:linear-gradient(90deg,rgba(40,224,122,.10),var(--panel))}
+  .tk.down{border-left-color:var(--red);background:linear-gradient(90deg,rgba(255,92,92,.12),var(--panel))}
+  /* per-index accent (left border + symbol color) — overrides up/down border */
+  .tk.idx-dji{border-left-color:#15c0c0}
+  .tk.idx-ixic{border-left-color:#a06bff}
+  .tk.idx-spx{border-left-color:#f0b429}
+  .tk.idx-dji  .tk-sym{color:#2fd6d6}
+  .tk.idx-ixic .tk-sym{color:#b388ff}
+  .tk.idx-spx  .tk-sym{color:#ffc94d}
+  .tk .tk-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .tk .tk-sym{font-weight:800;font-size:13px;letter-spacing:.5px}
+  .tk .tk-name{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+  .tk .tk-price{font-size:20px;font-weight:800;letter-spacing:.5px}
+  .tk .tk-chg{font-size:12px;font-weight:700;margin-top:2px}
+  .tk.up .tk-chg,.tk.up .tk-price{color:var(--green)}
+  .tk.down .tk-chg,.tk.down .tk-price{color:var(--red)}
+  @media(max-width:680px){.ticker{grid-template-columns:1fr}}
+  /* regime banner */
+  .regime{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:16px 18px;border-radius:10px;
+    box-shadow:var(--shadow);margin-bottom:18px;position:relative;overflow:hidden}
+  .regime.RISK_OFF{background:linear-gradient(90deg,rgba(255,92,92,.14),var(--panel))}
+  .regime.RISK_ON{background:linear-gradient(90deg,rgba(40,224,122,.14),var(--panel))}
+  .regime.NEUTRAL,.regime.UNKNOWN{background:linear-gradient(90deg,rgba(245,183,61,.12),var(--panel))}
+  .regime .tag{font-size:22px;font-weight:800;letter-spacing:1px}
+  .RISK_OFF .tag{color:var(--red)} .RISK_ON .tag{color:var(--green)} .NEUTRAL .tag,.UNKNOWN .tag{color:var(--amber)}
+  .regime .detail{color:var(--dim);font-size:12px;flex:1;min-width:240px}
+  .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:0;overflow:hidden}
+  .ph{padding:11px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    justify-content:space-between;background:var(--panel2)}
+  .ph h2{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--green)}
+  .ph .x{font-size:10px;color:var(--faint)}
+  .pb{padding:14px 15px}
+  /* pipeline stages */
+  .stages{display:flex;flex-wrap:wrap;gap:6px}
+  .stage{font-size:10px;padding:4px 9px;border:1px solid var(--border);border-radius:20px;color:var(--dim);
+    background:var(--panel2);white-space:nowrap}
+  .stage b{color:var(--faint);margin-right:5px}
+  /* run entry */
+  .run{padding:13px 0;border-bottom:1px dashed var(--border)}
+  .run:last-child{border-bottom:none}
+  .run .rh{display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap}
+  .badge{font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px}
+  .b-RISK_OFF{background:rgba(255,92,92,.16);color:var(--red)}
+  .b-RISK_ON{background:rgba(40,224,122,.16);color:var(--green)}
+  .b-NEUTRAL,.b-UNKNOWN{background:rgba(245,183,61,.16);color:var(--amber)}
+  .run .when{font-size:12px;font-weight:600;color:var(--txt)}
+  .kv{margin:5px 0;font-size:12px}
+  .kv .k{color:var(--faint);text-transform:uppercase;font-size:9.5px;letter-spacing:1px;display:block;margin-bottom:1px}
+  .kv .v{color:var(--txt);word-break:break-word}
+  .kv.fu .v{color:var(--amber)}
+  .kv.tp .v{color:var(--green)}
+  /* schedule */
+  .sched .row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--border)}
+  .sched .row:last-child{border-bottom:none}
+  .sched .nm{font-size:11.5px}
+  .sched .eng{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:1px}
+  .sched .tm{text-align:right;font-size:11px}
+  .sched .tm b{color:var(--green)} .sched .tm .et{color:var(--faint);font-size:10px}
+  .sched .eta{font-size:9.5px;color:var(--amber);margin-top:2px}
+  /* controls */
+  .ctrls{display:flex;flex-direction:column;gap:8px}
+  .btn{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--txt);
+    background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:10px 13px;
+    font-size:12px;transition:.15s;cursor:pointer}
+  .btn:hover{border-color:var(--green2);background:rgba(40,224,122,.07);transform:translateX(2px)}
+  .btn .ic{color:var(--green);font-weight:800}
+  .btn small{color:var(--faint);margin-left:auto;font-size:10px}
+  .note{font-size:10px;color:var(--faint);margin-top:12px;line-height:1.6}
+  footer{margin-top:28px;text-align:center;color:var(--faint);font-size:10px;letter-spacing:.5px}
+  .loading{color:var(--dim);padding:30px;text-align:center}
+  .skeleton{height:14px;background:linear-gradient(90deg,var(--panel2),var(--border),var(--panel2));
+    background-size:200% 100%;animation:sh 1.4s infinite;border-radius:4px;margin:8px 0}
+  @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  /* auth overlay */
+  .gate{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 20%,rgba(40,224,122,.06),#040605 60%);padding:20px}
+  .gate.show{display:flex}
+  .card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);
+    border-radius:14px;box-shadow:var(--shadow);padding:26px 24px}
+  .card .glogo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .card h2{font-size:14px;font-weight:800;letter-spacing:.5px}
+  .card .gsub{color:var(--dim);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+  .fld{margin:12px 0}
+  .fld label{display:block;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+  .fld input{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:7px;
+    padding:11px 12px;color:var(--txt);font-family:inherit;font-size:13px;outline:none}
+  .fld input:focus{border-color:var(--green2)}
+  .gbtn{width:100%;margin-top:6px;background:var(--green);color:#06120b;border:none;border-radius:7px;
+    padding:12px;font-family:inherit;font-size:13px;font-weight:800;letter-spacing:.5px;cursor:pointer;transition:.15s}
+  .gbtn:hover{background:#34f08a}
+  .gbtn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--border);font-weight:600}
+  .gbtn.sec:hover{border-color:var(--green2);background:rgba(40,224,122,.07)}
+  .gerr{color:var(--red);font-size:11px;min-height:14px;margin-top:8px}
+  .gok{color:var(--green);font-size:11px;min-height:14px;margin-top:8px}
+  .glink{display:block;text-align:center;margin-top:14px;font-size:10.5px;color:var(--dim);
+    text-decoration:none;cursor:pointer;letter-spacing:.5px}
+  .glink:hover{color:var(--green)}
+  .hidden{display:none}
+  /* small admin button in header */
+  .adminbtn{background:none;border:1px solid var(--border);color:var(--faint);border-radius:5px;
+    font-size:9px;letter-spacing:1px;padding:3px 8px;cursor:pointer;font-family:inherit;margin-left:8px}
+  .adminbtn:hover{border-color:var(--green2);color:var(--green)}
+</style>
+</head>
+<body>
+
+  <!-- AUTH GATE -->
+  <div class="gate" id="gate">
+    <div class="card">
+      <div class="glogo">
+        <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
+          <rect x="2" y="2" width="36" height="36" rx="9" stroke="var(--green)" stroke-width="2"/>
+          <path d="M9 25 L16 16 L22 21 L31 11" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div><h2>UDWF+ MONITOR</h2><div class="gsub">Restricted Terminal</div></div>
+      </div>
+
+      <!-- login view -->
+      <div id="login-view">
+        <div class="fld">
+          <label>Access password</label>
+          <input id="in-pass" type="password" autocomplete="current-password" placeholder="enter password" />
+        </div>
+        <button class="gbtn" id="btn-login">Unlock</button>
+        <div class="gerr" id="login-msg"></div>
+        <a class="glink" id="to-admin">Admin · change access password</a>
+      </div>
+
+      <!-- admin change-password view -->
+      <div id="admin-view" class="hidden">
+        <div class="fld">
+          <label>Admin password</label>
+          <input id="in-admin" type="password" autocomplete="off" placeholder="admin password" />
+        </div>
+        <div class="fld">
+          <label>New access password</label>
+          <input id="in-newpass" type="password" autocomplete="new-password" placeholder="new user password (min 4)" />
+        </div>
+        <button class="gbtn" id="btn-change">Update access password</button>
+        <div class="gok" id="admin-msg"></div>
+        <a class="glink" id="to-login">← Back to login</a>
+      </div>
+    </div>
+  </div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 40 40" fill="none" aria-label="UDWF logo">
+        <rect x="2" y="2" width="36" height="36" rx="9" stroke="var(--green)" stroke-width="2"/>
+        <path d="M9 25 L16 16 L22 21 L31 11" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="31" cy="11" r="2.6" fill="var(--green)"/>
+      </svg>
+      <div>
+        <h1>UDWF+ MONITOR</h1>
+        <div class="sub">Gated Pipeline · Live Scan Terminal <span class="usflag">US MARKETS ONLY</span></div>
+      </div>
+    </div>
+    <div class="meta">
+      <div><span class="dot" id="status-dot" style="color:var(--green)"></span><span id="status-txt">connecting…</span></div>
+      <div>source: <b id="src">—</b> · refreshed <b id="refreshed">—</b><button class="adminbtn" id="btn-logout">LOG OUT</button></div>
+    </div>
+  </header>
+
+  <div class="ticker" id="ticker">
+    <div class="tk-loading">loading US indices…</div>
+  </div>
+
+  <div class="regime UNKNOWN" id="regime">
+    <div class="tag" id="regime-tag">—</div>
+    <div class="detail" id="regime-detail"><div class="skeleton" style="width:60%"></div></div>
+  </div>
+
+  <div class="panel" style="margin-bottom:18px">
+    <div class="ph"><h2>7-Stage Pipeline</h2><span class="x">regime-first · gated · sovereign</span></div>
+    <div class="pb"><div class="stages" id="stages"></div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="ph"><h2>Scan History</h2><span class="x" id="run-count">—</span></div>
+      <div class="pb" id="runs"><div class="loading">Loading scan log…</div></div>
+    </div>
+
+    <div>
+      <div class="panel" style="margin-bottom:18px">
+        <div class="ph"><h2>Schedule (Asia/Riyadh)</h2><span class="x">Mon–Fri</span></div>
+        <div class="pb sched" id="sched"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>Run Controls</h2><span class="x">Telegram + Tasks</span></div>
+        <div class="pb">
+          <div class="ctrls">
+            <a class="btn" id="c-scan" href="#" target="_blank" rel="noopener"><span class="ic">▶</span> Run scan now <small>/udwf</small></a>
+            <a class="btn" id="c-board" href="#" target="_blank" rel="noopener"><span class="ic">▤</span> Re-print board <small>/udwf_board</small></a>
+            <a class="btn" id="c-health" href="#" target="_blank" rel="noopener"><span class="ic">♥</span> Stack health <small>/udwf_health</small></a>
+            <a class="btn" id="c-tasks" href="#" target="_blank" rel="noopener"><span class="ic">⚙</span> Manage schedule <small>Tasks ↗</small></a>
+            <button class="btn" id="c-refresh"><span class="ic">⟳</span> Refresh now <small>fetch</small></button>
+          </div>
+          <div class="note">Run/board/health open your Telegram bot commands (the Perplexity scheduler fires the actual scans). "Manage schedule" opens the Tasks dashboard to pause or edit any of the 6 scans.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>UDWF+ gated 7-stage orchestrator · live data only · not investment advice · auto-refresh 60s</footer>
+</div>
+
+<script>
+  // Configure these to your bot / tasks URLs (edit + redeploy to change).
+  var TELEGRAM_BOT = "https://t.me/nbw_v2_orchestrator_bot";
+  var TASKS_URL = "https://www.perplexity.ai/computer/tasks/b01de1ab-e87e-42a3-9d2e-d0bb239c7091";
+  document.getElementById("c-scan").href = TELEGRAM_BOT;
+  document.getElementById("c-board").href = TELEGRAM_BOT;
+  document.getElementById("c-health").href = TELEGRAM_BOT;
+  document.getElementById("c-tasks").href = TASKS_URL;
+
+  function esc(s){return (s||"").replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]});}
+  function fmtTime(iso){try{var d=new Date(iso);return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});}catch(e){return iso;}}
+
+  function render(d){
+    document.getElementById("src").textContent = d.source;
+    document.getElementById("refreshed").textContent = fmtTime(d.fetchedAt);
+    document.getElementById("status-txt").textContent = "live";
+
+    // US index ticker strip (DJI / IXIC / SPX)
+    var tk = document.getElementById("ticker");
+    var mk = d.markets && d.markets.indices ? d.markets.indices : [];
+    if(mk.length){
+      tk.innerHTML="";
+      tk.title = "source: "+((d.markets&&d.markets.source)||"")+" · as of "+((d.markets&&d.markets.asOf)||"latest");
+      mk.forEach(function(ix){
+        var up = (ix.change||0) >= 0;
+        var price = (ix.price!=null)? Number(ix.price).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : "—";
+        var chg = (ix.change!=null)? (up?"+":"")+Number(ix.change).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : "";
+        var pct = (ix.pct!=null)? " ("+(up?"+":"")+Number(ix.pct).toFixed(2)+"%)" : "";
+        var arrow = up? "▲" : "▼";
+        var lab = (ix.label||"").toUpperCase();
+        var accent = (lab==="DJI")?"idx-dji":(lab==="IXIC")?"idx-ixic":(lab==="SPX")?"idx-spx":"";
+        var el=document.createElement("div"); el.className="tk "+(up?"up":"down")+(accent?(" "+accent):"");
+        el.innerHTML='<div class="tk-top"><span class="tk-sym">'+esc(ix.label)+'</span><span class="tk-name">'+esc(ix.name)+'</span></div>'+
+          '<div class="tk-price">'+price+'</div>'+
+          '<div class="tk-chg">'+arrow+' '+chg+pct+'</div>';
+        tk.appendChild(el);
+      });
+    }
+
+    // regime banner from most recent run, else baseline
+    var latest = d.runs && d.runs.length ? d.runs[d.runs.length-1] : null;
+    var reg = latest ? latest.regime : (/RISK_OFF/i.test(d.baselineRegime||"")?"RISK_OFF":(/RISK_ON/i.test(d.baselineRegime||"")?"RISK_ON":"UNKNOWN"));
+    var detail = latest ? (latest.regimeLine||"") : (d.baselineRegime||"awaiting first scheduled run");
+    var rb = document.getElementById("regime");
+    rb.className = "regime "+reg;
+    document.getElementById("regime-tag").textContent = reg.replace("_"," ");
+    document.getElementById("regime-detail").textContent = detail;
+
+    // stages
+    var st = document.getElementById("stages"); st.innerHTML="";
+    (d.stages||[]).forEach(function(s,i){
+      var el=document.createElement("span"); el.className="stage";
+      el.innerHTML="<b>"+i+"</b>"+esc(s); st.appendChild(el);
+    });
+
+    // runs (newest first)
+    var rc = document.getElementById("runs");
+    document.getElementById("run-count").textContent = (d.runs?d.runs.length:0)+" entries";
+    if(!d.runs || !d.runs.length){
+      rc.innerHTML='<div class="loading">No scheduled runs logged yet.<br>First premarket scan appends here at 15:30 KSA.</div>';
+    } else {
+      rc.innerHTML="";
+      d.runs.slice().reverse().forEach(function(r){
+        var div=document.createElement("div"); div.className="run";
+        var h='<div class="rh"><span class="badge b-'+r.regime+'">'+r.regime.replace("_"," ")+'</span><span class="when">'+esc(r.header)+'</span></div>';
+        if(r.regimeLine) h+='<div class="kv"><span class="k">Regime</span><span class="v">'+esc(r.regimeLine)+'</span></div>';
+        if(r.board) h+='<div class="kv"><span class="k">Board</span><span class="v">'+esc(r.board)+'</span></div>';
+        if(r.topPick) h+='<div class="kv tp"><span class="k">Top Pick</span><span class="v">'+esc(r.topPick)+'</span></div>';
+        if(r.killed) h+='<div class="kv"><span class="k">Killed at Gates</span><span class="v">'+esc(r.killed)+'</span></div>';
+        if(r.followup) h+='<div class="kv fu"><span class="k">Follow-up (carried to next run)</span><span class="v">'+esc(r.followup)+'</span></div>';
+        div.innerHTML=h; rc.appendChild(div);
+      });
+    }
+
+    // schedule
+    var sc=document.getElementById("sched"); sc.innerHTML="";
+    (d.schedule||[]).forEach(function(s){
+      var row=document.createElement("div"); row.className="row";
+      var eta = s.inMinutes!=null ? (s.inMinutes<60? "in "+s.inMinutes+"m" : "in "+Math.floor(s.inMinutes/60)+"h "+(s.inMinutes%60)+"m") : "";
+      row.innerHTML='<div><div class="nm">'+esc(s.name)+'</div><div class="eng">'+esc(s.engine)+'</div></div>'+
+        '<div class="tm"><b>'+esc(s.ksa)+'</b> KSA <span class="et">('+esc(s.et)+' ET)</span><div class="eta">'+eta+'</div></div>';
+      sc.appendChild(row);
+    });
+  }
+
+  function load(){
+    document.getElementById("status-dot").style.color="var(--amber)";
+    fetch("/api/data",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+      document.getElementById("status-dot").style.color="var(--green)";
+      render(d);
+    }).catch(function(e){
+      document.getElementById("status-dot").style.color="var(--red)";
+      document.getElementById("status-txt").textContent="fetch error";
+    });
+  }
+  document.getElementById("c-refresh").addEventListener("click", load);
+
+  // ---------- AUTH GATE ----------
+  var gate=document.getElementById("gate"), app=document.getElementById("app");
+  var loginView=document.getElementById("login-view"), adminView=document.getElementById("admin-view");
+  var refreshTimer=null;
+
+  function showApp(){
+    gate.classList.remove("show"); app.style.display="";
+    load(); if(!refreshTimer) refreshTimer=setInterval(load,60000);
+  }
+  function showGate(){
+    if(refreshTimer){ clearInterval(refreshTimer); refreshTimer=null; }
+    app.style.display="none"; gate.classList.add("show");
+    loginView.classList.remove("hidden"); adminView.classList.add("hidden");
+    document.getElementById("in-pass").value="";
+  }
+  function api(action, extra){
+    return fetch("/api/auth",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify(Object.assign({action:action},extra||{}))}).then(function(r){return r.json().then(function(j){j._status=r.status;return j;});});
+  }
+
+  document.getElementById("btn-login").addEventListener("click", doLogin);
+  document.getElementById("in-pass").addEventListener("keydown", function(e){ if(e.key==="Enter") doLogin(); });
+  function doLogin(){
+    var msg=document.getElementById("login-msg"); msg.textContent="checking…"; msg.className="gerr";
+    api("login",{password:document.getElementById("in-pass").value}).then(function(j){
+      if(j.ok){ msg.textContent=""; showApp(); }
+      else { msg.className="gerr"; msg.textContent=j.error||"login failed"; }
+    }).catch(function(){ msg.textContent="network error"; });
+  }
+
+  document.getElementById("to-admin").addEventListener("click", function(){
+    loginView.classList.add("hidden"); adminView.classList.remove("hidden");
+    document.getElementById("admin-msg").textContent="";
+  });
+  document.getElementById("to-login").addEventListener("click", function(){
+    adminView.classList.add("hidden"); loginView.classList.remove("hidden");
+  });
+  document.getElementById("btn-change").addEventListener("click", function(){
+    var msg=document.getElementById("admin-msg");
+    msg.className="gok"; msg.textContent="saving…";
+    api("change",{adminPassword:document.getElementById("in-admin").value,
+                  newUserPassword:document.getElementById("in-newpass").value}).then(function(j){
+      if(j.ok){ msg.className="gok"; msg.textContent="✓ updated — takes ~30s to go live";
+        document.getElementById("in-admin").value=""; document.getElementById("in-newpass").value=""; }
+      else { msg.className="gerr"; msg.textContent=j.error||"update failed"; }
+    }).catch(function(){ msg.className="gerr"; msg.textContent="network error"; });
+  });
+
+  document.getElementById("btn-logout").addEventListener("click", function(){
+    document.cookie="udwf_sess=; Path=/; Max-Age=0"; showGate();
+  });
+
+  // boot: validate existing session, else show gate
+  api("check").then(function(j){ if(j.ok){ showApp(); } else { showGate(); } })
+              .catch(function(){ showGate(); });
+</script>
+</body>
+</html>
